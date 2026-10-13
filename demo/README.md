@@ -1,21 +1,46 @@
 # demo · CallDemo
 
-一个不用服务器的小 app，用来看这套视频通话「长什么样、手感怎么样」。
-AI 那头是写死的几句话（`MockBrain.swift`），用系统自带的声音念。
+**一套连好的骨架，给你的 AI 从这里改起。** 不用服务器，七个文件，打开就是一个完整的视频通话 app。
+ta 那头是写死的几句话（`MockBrain.swift`），用系统自带的声音念 —— 换成你的模型和 TTS，它就是你们的了。
 
 > 🟡 **诚实标注**：这份代码是照我们真在用的那套抽出来重写的，**还没在 Xcode 里编译、没在真机上跑过**。
 > 编不过或者跑起来不对，开 issue，或者直接丢给你的 AI 修 —— 坑大多已经写在 01~05 章里了。
 
 ## 这一篇讲什么
 
-1. [怎么跑起来](#1-怎么跑起来)
-2. [能看到什么](#2-能看到什么)
-3. [哪些是假的、换成真的要改哪](#3-哪些是假的换成真的要改哪)
-4. [每个文件对应哪一章](#4-每个文件对应哪一章)
+1. [哪些是假的、换成真的要改哪](#1-哪些是假的换成真的要改哪) —— 让 AI 改的就是这几处
+2. [每个文件对应哪一章](#2-每个文件对应哪一章)
+3. [想自己装来看](#3-想自己装来看)
+4. [装上能看到什么](#4-装上能看到什么)
 
 ---
 
-## 1. 怎么跑起来
+## 1. 哪些是假的、换成真的要改哪
+
+| 假的 | 在哪 | 换成真的 |
+|---|---|---|
+| ta 的回复 | `MockBrain.reply(to:)` | 改成请求你自己的模型。`Turn` 里有 `kind`（接通 / 说话 / 打字 / 沉默）、`text` 和 `sight`。`sight` 一定要明写进消息 —— 尤其是 `.cameraOff` / `.noFrame`，**没图不能靠模型自己推**（04 章 4.4） |
+| ta 的声音 | `Voice`（`AVSpeechSynthesizer`） | 换成你的 TTS。保留「写进同一个 `AVAudioEngine` 的 player」这一点，回声消除和光档的音量都靠它 |
+| ta 的脸 | `PhotoView` 的占位 | 往 `CallDemo/` 里加一个 Assets，放 `face_calm` `face_smile` `face_shy` `face_tease` `face_soft` 五张图。**五张从同一张参考图生成**，不然换表情像换了个人 |
+| 横幅头像 | 没有 | CallKit 没有头像 API。在手机通讯录里建一张联系人，邮箱填 `ta@example.com`、放 ta 的照片，来电时系统会按邮箱匹配出来（05 章） |
+| 来电推送 | `Ringer.ringIn(after:)` 本地报 | 真的要服务端发 VoIP 推送，见 [ios-app-where-it-breaks / 02-calls](https://github.com/Cheiineeey/ios-app-where-it-breaks/tree/main/02-calls) |
+
+实时数字人（03 章）和灵动岛邀请卡（05 章后半）**不在 demo 里**：前者要第三方账号和钱，后者要付费开发者账号 + 服务端推送。
+
+## 2. 每个文件对应哪一章
+
+| 文件 | 干什么 | 对应 |
+|---|---|---|
+| `CallSession.swift` | 一通电话的状态机：轮次、打字排队、沉默接话、看得见吗 | 01 |
+| `Camera.swift` | 三选一镜头、记住上次前后、挑最清楚的一帧、关了当场清帧 | 01 |
+| `Audio.swift` | 一个引擎同时出声和收音、回声消除、光档音量、实时灰字 | 01 · 02 |
+| `CallScreen.swift` | FaceTime 布局、光 / 照片两档、字幕往回翻 | 01 · 02 |
+| `MockBrain.swift` | 假的 ta | 04（换成真的时） |
+| `Ringer.swift` | 本地 CallKit 来电、横幅字幕、到期自挂 | 05 |
+
+## 3. 想自己装来看
+
+不装也不影响让 AI 照着改；要亲手摸一下的话：
 
 1. Xcode 打开 `CallDemo.xcodeproj`（要 Xcode 16 以上，iOS 17 以上的**真机**）
 2. Signing & Capabilities 里选你自己的 Team，Bundle Identifier 改成你自己的（现在是 `com.yourname.calldemo`）
@@ -23,7 +48,7 @@ AI 那头是写死的几句话（`MockBrain.swift`），用系统自带的声音
 
 模拟器能开界面，但相机、回声消除、CallKit 都不像真机，别拿模拟器的表现下结论。
 
-## 2. 能看到什么
+## 4. 装上能看到什么
 
 首页两个按钮。
 
@@ -43,29 +68,6 @@ AI 那头是写死的几句话（`MockBrain.swift`），用系统自带的声音
 - 字幕整通都在，手指往上翻就停在那，松手 5 秒再跟回最新
 - 键盘键可以打字；ta 正在说或在想时打的字会排队，说完再发
 - 开着镜头时问 ta「看得见吗」，左上会亮 5 秒「ta 看到的」那一帧；关着镜头问，ta 会说看不到 —— 这就是 04 章 4.4 那条
-
-## 3. 哪些是假的、换成真的要改哪
-
-| 假的 | 在哪 | 换成真的 |
-|---|---|---|
-| ta 的回复 | `MockBrain.reply(to:)` | 改成请求你自己的模型。`Turn` 里有 `kind`（接通 / 说话 / 打字 / 沉默）、`text` 和 `sight`。`sight` 一定要明写进消息 —— 尤其是 `.cameraOff` / `.noFrame`，**没图不能靠模型自己推**（04 章 4.4） |
-| ta 的声音 | `Voice`（`AVSpeechSynthesizer`） | 换成你的 TTS。保留「写进同一个 `AVAudioEngine` 的 player」这一点，回声消除和光档的音量都靠它 |
-| ta 的脸 | `PhotoView` 的占位 | 往 `CallDemo/` 里加一个 Assets，放 `face_calm` `face_smile` `face_shy` `face_tease` `face_soft` 五张图。**五张从同一张参考图生成**，不然换表情像换了个人 |
-| 横幅头像 | 没有 | CallKit 没有头像 API。在手机通讯录里建一张联系人，邮箱填 `ta@example.com`、放 ta 的照片，来电时系统会按邮箱匹配出来（05 章） |
-| 来电推送 | `Ringer.ringIn(after:)` 本地报 | 真的要服务端发 VoIP 推送，见 [ios-app-where-it-breaks / 02-calls](https://github.com/Cheiineeey/ios-app-where-it-breaks/tree/main/02-calls) |
-
-实时数字人（03 章）和灵动岛邀请卡（05 章后半）**不在 demo 里**：前者要第三方账号和钱，后者要付费开发者账号 + 服务端推送。
-
-## 4. 每个文件对应哪一章
-
-| 文件 | 干什么 | 对应 |
-|---|---|---|
-| `CallSession.swift` | 一通电话的状态机：轮次、打字排队、沉默接话、看得见吗 | 01 |
-| `Camera.swift` | 三选一镜头、记住上次前后、挑最清楚的一帧、关了当场清帧 | 01 |
-| `Audio.swift` | 一个引擎同时出声和收音、回声消除、光档音量、实时灰字 | 01 · 02 |
-| `CallScreen.swift` | FaceTime 布局、光 / 照片两档、字幕往回翻 | 01 · 02 |
-| `MockBrain.swift` | 假的 ta | 04（换成真的时） |
-| `Ringer.swift` | 本地 CallKit 来电、横幅字幕、到期自挂 | 05 |
 
 ---
 
