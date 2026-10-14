@@ -55,41 +55,73 @@ final class CallSession: ObservableObject {
     private var seenClear: Task<Void, Never>?
     private var turnGen = 0
     private var followStep = 0
+    // CallKit 那条路上，「权限问完」和「系统交出音频」谁先到不一定；两样都齐了才开。
+    private var permsOK = false
+    private var audioReady = false
+    private var audioUp = false
 
     // MARK: 接通 / 挂断
 
     func start(viaCallKit: Bool) {
         guard !active else { return }
         self.viaCallKit = viaCallKit
+        // 上一通留下的东西全清掉 —— 尤其是打字队列，不然上一通没念的字会在这一通冒出来。
         captions = []; hearing = ""; camera = .unchosen; face = .calm
+        typedQueue = []; followStep = 0; thinking = false; seenFrame = nil
+        permsOK = false; audioUp = false
+        audioReady = !viaCallKit       // 自己打的不用等系统
         active = true
         Task {
             guard await Ears.askPermissions() else {
                 captions.append(Caption(who: .ta, text: "（要麦克风和语音识别权限才能打）", isAction: true))
                 return
             }
-            // CallKit 那条路要等系统 didActivate 再开 engine；自己打的这条路现在就开。
-            if !viaCallKit { AudioRig.shared.activateSelf(); bringUpAudio() }
+            guard active else { return }
+            permsOK = true
+            if !viaCallKit { AudioRig.shared.activateSelf() }
+            bringUpAudioIfReady()
         }
     }
 
-    func audioActivatedByCallKit() { bringUpAudio() }
+    /// 系统 didActivate。可能比权限弹窗先回来，也可能晚，所以只记一笔、两样齐了再开。
+    func audioActivatedByCallKit() {
+        guard active else { return }
+        audioReady = true
+        bringUpAudioIfReady()
+    }
 
-    private func bringUpAudio() {
+    private func bringUpAudioIfReady() {
+        guard active, permsOK, audioReady, !audioUp else { return }
+        audioUp = true
         AudioRig.shared.start()
         ears.onPartial = { [weak self] t in self?.hearing = t; self?.cancelFollowUp() }
-        ears.onFinal = { [weak self] t in self?.hearing = ""; self?.herTurn(t, typed: false) }
+        ears.onFinal = { [weak self] t in
+            guard let self else { return }
+            self.hearing = ""
+            if t.isEmpty {
+                // 坑 1.6：咳一声是空的。不算一句 —— 但它刚才那下 onPartial 把接话取消了，这里要接回去。
+                // 只在被取消过时接回；识别任务每分钟超时也会走到这，不能每次都把倒计时重置掉。
+                if !self.speaking && !self.thinking && (self.followTask?.isCancelled ?? true) { self.armFollowUp() }
+            } else {
+                self.herTurn(t, typed: false)
+            }
+        }
         ears.start()
         runTurn(Turn(kind: .connected, text: "", sight: .notChosen))
     }
 
     func hangUp(fromCallKit: Bool = false) {
+        guard active else { return }   // App 里按挂断 → CallKit 回调 onEnd 又进来一次
         turnGen += 1
         followTask?.cancel()
+        seenClear?.cancel()
+        typedQueue = []
+        thinking = false
         voice.stop()
         ears.stop()
         cam.stop()
-        AudioRig.shared.stop()
+        AudioRig.shared.stop(deactivate: !viaCallKit)
+        audioUp = false
         if viaCallKit && !fromCallKit { Ringer.shared.endFromApp() }
         active = false
     }
@@ -169,9 +201,9 @@ final class CallSession: ObservableObject {
     /// 拆一条回复：〔表情〕换照片，（动作）上屏不念，其余逐句念。
     private func play(_ raw: String, gen: Int) async {
         speaking = true
-        ears.paused = true
+        ears.pause()
         hearing = ""
-        defer { speaking = false; ears.paused = false }
+        defer { speaking = false; if active { ears.resume() } }
 
         for seg in Self.segments(raw) {
             guard gen == turnGen, active else { return }

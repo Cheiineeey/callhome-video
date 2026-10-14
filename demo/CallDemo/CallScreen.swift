@@ -14,17 +14,24 @@ struct CallScreen: View {
     private var cameraOn: Bool { call.camera == .front || call.camera == .back }
 
     var body: some View {
-        GeometryReader { geo in
-            let full = geo.size
-            let small = CGSize(width: 110, height: 160)
+        // 外层只用来读安全区；画面那层铺满整屏（含刘海和底部横条），坐标原点是屏幕左上角。
+        // 两层分开是因为：铺满的那层 size 和 safeAreaInsets 不在同一个坐标系里，混着用小窗会偏。
+        GeometryReader { outer in
+            let safe = outer.safeAreaInsets
             ZStack {
-                Color.black.ignoresSafeArea()
-
-                // 两块都常驻，只挪位置 —— 摄像头预览因此只有一个 layer。
-                tile(isTa: true, big: !swapped || !cameraOn, full: full, small: small, safe: geo.safeAreaInsets)
-                if cameraOn {
-                    tile(isTa: false, big: swapped, full: full, small: small, safe: geo.safeAreaInsets)
+                GeometryReader { geo in
+                    let full = geo.size
+                    let small = CGSize(width: 110, height: 160)
+                    ZStack {
+                        Color.black
+                        // 两块都常驻，只挪位置 —— 摄像头预览因此只有一个 layer。
+                        tile(isTa: true, big: !swapped || !cameraOn, full: full, small: small, safe: safe)
+                        if cameraOn {
+                            tile(isTa: false, big: swapped, full: full, small: small, safe: safe)
+                        }
+                    }
                 }
+                .ignoresSafeArea()
 
                 VStack(spacing: 10) {
                     topBar
@@ -39,6 +46,8 @@ struct CallScreen: View {
                 .padding(.bottom, 8)
             }
         }
+        // 镜头关了就回到默认：不然再开镜头时，满屏突然变成你自己。
+        .onChange(of: cameraOn) { if !cameraOn { swapped = false } }
         .preferredColorScheme(.dark)
         .statusBarHidden()
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
@@ -58,9 +67,9 @@ struct CallScreen: View {
         .clipShape(RoundedRectangle(cornerRadius: big ? 0 : 14))
         .position(x: pos.x + (big ? 0 : drag.width), y: pos.y + (big ? 0 : drag.height))
         .zIndex(big ? 0 : 1)
-        .ignoresSafeArea()
         .onTapGesture { if !big { withAnimation(.spring(duration: 0.35)) { swapped.toggle() } } }
-        .gesture(big ? nil : DragGesture()
+        // 大的那块不接拖动：用 mask 关掉，而不是传一个可选手势。
+        .gesture(DragGesture()
             .onChanged { drag = $0.translation }
             .onEnded { v in
                 let p = CGPoint(x: pos.x + v.translation.width, y: pos.y + v.translation.height)
@@ -70,7 +79,7 @@ struct CallScreen: View {
                         : (p.y < full.height / 2 ? .topTrailing : .bottomTrailing)
                     drag = .zero
                 }
-            })
+            }, including: big ? .subviews : .all)
     }
 
     private func smallCenter(full: CGSize, small: CGSize, safe: EdgeInsets) -> CGPoint {

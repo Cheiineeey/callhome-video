@@ -33,7 +33,8 @@ final class AudioRig {
 
     func start() {
         guard !running else { return }
-        engine.attach(player)
+        // 第二通电话再进来时 player 还挂在 engine 上；重复 attach 会抛异常。
+        if player.engine == nil { engine.attach(player) }
         // 回声消除挂在 engine 的 IO 上：开了它，ta 的声音就不会被麦克风当成你在说话。
         try? engine.inputNode.setVoiceProcessingEnabled(true)
         engine.connect(player, to: engine.mainMixerNode, format: playFormat)
@@ -50,7 +51,9 @@ final class AudioRig {
         repinSpeaker()
     }
 
-    func stop() {
+    /// `deactivate`：自己打的那条路要自己交还音频会话（别人的音乐才能接着放）；
+    /// CallKit 那条路系统会收，别插手。
+    func stop(deactivate: Bool) {
         guard running else { return }
         player.stop()
         engine.inputNode.removeTap(onBus: 0)
@@ -58,6 +61,9 @@ final class AudioRig {
         engine.stop()
         running = false
         level = 0
+        if deactivate {
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        }
     }
 
     /// 坑 2.1：开摄像头会把声音甩回听筒。每次动过 AVCaptureSession 之后都再钉一次扬声器。
@@ -149,8 +155,9 @@ final class Voice {
 final class Ears {
     var onPartial: ((String) -> Void)?
     var onFinal: ((String) -> Void)?
-    /// ta 说话时置 true：不收音、不出灰字。（真项目里这里要接 barge-in，demo 不做。）
-    var paused = false
+    /// ta 说话时 true：不收音、不出灰字。（真项目里这里要接 barge-in，demo 不做。）
+    /// 只在主线程改；音频线程读一个 Bool，够用。
+    private(set) var paused = false
 
     private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "zh-CN"))
     private var request: SFSpeechAudioBufferRecognitionRequest?
@@ -183,6 +190,25 @@ final class Ears {
         request = nil
         task = nil
         generation += 1
+        paused = false
+    }
+
+    /// ta 开口：连同还没到点的「说完了」一起作废。
+    /// 不作废的话，你说了半句、ta 先开口（比如排队的打字），1.2 秒后那半句会冲出去打断 ta。
+    func pause() {
+        paused = true
+        silence?.cancel()
+        task?.cancel()
+        task = nil
+        request = nil
+        generation += 1
+        latest = ""
+    }
+
+    /// ta 说完：开一个干净的新任务。
+    func resume() {
+        paused = false
+        newUtterance()
     }
 
     /// 每一句开一个新任务（单个任务有一分钟上限，而且每句清零最不容易串）。
@@ -195,27 +221,41 @@ final class Ears {
         let req = SFSpeechAudioBufferRecognitionRequest()
         req.shouldReportPartialResults = true
         request = req
-        task = recognizer?.recognitionTask(with: req) { [weak self] result, _ in
-            guard let self, let result else { return }
+        task = recognizer?.recognitionTask(with: req) { [weak self] result, error in
+            guard let self else { return }
+            let text = result?.bestTranscription.formattedString
+            let isFinal = result?.isFinal ?? false
             DispatchQueue.main.async {
                 guard gen == self.generation, !self.paused else { return }
-                self.latest = result.bestTranscription.formattedString
-                self.onPartial?(self.latest)
-                self.armSilence(gen)
+                if let text {
+                    self.latest = text
+                    self.onPartial?(text)
+                    self.armSilence(gen)
+                }
+                // 任务自己结束了（单个任务约一分钟上限、你一直不说话也会超时报错）：
+                // 不重开的话，后半通就再也听不见你了，而且没有任何报错。
+                // 报错的那种隔半秒再开：识别器不可用时会立刻报错，不隔就原地空转。
+                if isFinal { self.finishNow(gen) }
+                else if error != nil {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.finishNow(gen) }
+                }
             }
         }
     }
 
+    private func finishNow(_ gen: Int) {
+        guard gen == generation else { return }
+        silence?.cancel()
+        let text = latest.trimmingCharacters(in: .whitespacesAndNewlines)
+        request?.endAudio()
+        newUtterance()
+        onFinal?(text)
+    }
+
     private func armSilence(_ gen: Int) {
         silence?.cancel()
-        let item = DispatchWorkItem { [weak self] in
-            guard let self, gen == self.generation else { return }
-            let text = self.latest.trimmingCharacters(in: .whitespacesAndNewlines)
-            self.request?.endAudio()
-            self.newUtterance()
-            // 坑 1.6：咳一声、碰一下桌子 = 空的。空的就当没发生，别回「没听清」。
-            if !text.isEmpty { self.onFinal?(text) }
-        }
+        // 坑 1.6：咳一声、碰一下桌子 = 空的。空的也交出去（text 为空），由 CallSession 决定当没发生。
+        let item = DispatchWorkItem { [weak self] in self?.finishNow(gen) }
         silence = item
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2, execute: item)
     }

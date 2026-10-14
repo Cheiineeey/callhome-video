@@ -55,7 +55,8 @@ final class Ringer: NSObject, CXProviderDelegate {
         // 响铃时不设 localizedCallerName：它会盖掉通讯录名字，你看不出到底配上没有。
         AudioRig.shared.configureCategory()
         provider.reportNewIncomingCall(with: uuid, update: update) { [weak self] error in
-            if let error { print("reportNewIncomingCall:", error); self?.ringOver() }
+            // 报失败（勿扰、已有通话……）也要把 current 清掉，不然之后的字幕和挂断都对着一通不存在的电话。
+            if let error { print("reportNewIncomingCall:", error); self?.current = nil; self?.ringOver() }
         }
         // 坑 5.3 的第 4 层：响铃到期没人挂。这里 30 秒不接就自己挂成未接。
         DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
