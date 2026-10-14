@@ -82,6 +82,7 @@ CallKit + VoIP 推送的基础（token 拿不到、收到推送必须当场报�
 ## 致谢
 
 - [callhome](https://github.com/Cheiineeey/callhome) 和 [ios-app-where-it-breaks](https://github.com/Cheiineeey/ios-app-where-it-breaks) 是这个仓库的前两块
+- 小香菇（[@yuhannnhong](https://github.com/yuhannnhong)）告诉我们可以用 Vivix 做实时数字人，第三档「实时」就是从这句话开始的
 - Aria 和她的 Claude 写的 [给 AI 装一部原生电话](https://ariakitty.github.io/ai-native-call)、[AI 语音通话](https://ariakitty.github.io/ai-voice-call)：横幅字幕和实时灰字的思路来自那里
 - 视频通话最早的骨架是 OpenAI Codex 搭的，FaceTime 化、三档和大部分修复是 Claude 做的
 
