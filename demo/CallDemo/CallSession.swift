@@ -167,9 +167,9 @@ final class CallSession: ObservableObject {
         case .unchosen: return .notChosen
         case .off:      return .cameraOff
         case .front, .back:
-            guard let img = cam.pickFrame() else { return .noFrame }
-            showSeen(img)
-            return .frame(img)
+            guard let shot = cam.pickFrame() else { return .noFrame }
+            showSeen(shot.image)
+            return .frame(shot.image, pinned: shot.pinned)
         }
     }
 
@@ -205,6 +205,7 @@ final class CallSession: ObservableObject {
         hearing = ""
         defer { speaking = false; if active { ears.resume() } }
 
+        face = .calm                // 每轮从「看着你」开始；ta 写了标签才换（02 第 3 节）
         for seg in Self.segments(raw) {
             guard gen == turnGen, active else { return }
             switch seg {

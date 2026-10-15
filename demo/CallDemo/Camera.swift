@@ -20,6 +20,7 @@ final class Camera: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     private var lastThumb: [UInt8] = []
     private var lastTake = Date.distantPast
     private var wanted = false                // 坑 1.2：关了之后晚到的帧也不能收
+    private var pinned: UIImage?              // 你长按钉住的那一张（01 第 3 节），下一轮优先给
 
     override init() {
         super.init()
@@ -61,17 +62,28 @@ final class Camera: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         queue.async { [self] in
             wanted = false
             frames.removeAll()        // 当场清：关镜头后那一句不能带上关之前的图
+            pinned = nil
             lastThumb = []
             if session.isRunning { session.stopRunning() }
             DispatchQueue.main.async { AudioRig.shared.repinSpeaker() }
         }
     }
 
-    /// 这一轮给 ta 的那一张；没有就 nil（然后要明写「这一轮没取到」）。
-    func pickFrame() -> UIImage? {
+    /// 长按你那一格：把当下这一帧钉住。没画面返回 false（界面就别闪）。
+    func pin() -> Bool {
         queue.sync {
-            guard wanted else { return nil }
-            return frames.suffix(3).min(by: { $0.motion < $1.motion })?.image
+            guard wanted, let last = frames.last else { return false }
+            pinned = last.image
+            return true
+        }
+    }
+
+    /// 这一轮给 ta 的那一张；钉住的优先，用完就清。没有就 nil（然后要明写「这一轮没取到」）。
+    func pickFrame() -> (image: UIImage, pinned: Bool)? {
+        queue.sync {
+            guard wanted else { pinned = nil; return nil }
+            if let p = pinned { pinned = nil; return (p, true) }
+            return frames.suffix(3).min(by: { $0.motion < $1.motion }).map { ($0.image, false) }
         }
     }
 

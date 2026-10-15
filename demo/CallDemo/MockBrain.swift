@@ -6,7 +6,7 @@ enum Sight {
     case notChosen          // 还没选开不开镜头
     case cameraOff          // 关着
     case noFrame            // 开着，但这一轮没取到图
-    case frame(UIImage)     // 这一轮的那一张
+    case frame(UIImage, pinned: Bool)   // 这一轮的那一张；pinned = 你长按钉住要 ta 看的
 }
 
 /// 一轮要交给模型的东西。

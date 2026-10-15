@@ -4,6 +4,8 @@ import SwiftUI
 struct CallScreen: View {
     @EnvironmentObject var call: CallSession
     @State private var swapped = false
+    @State private var pinFlash = false
+    @State private var justPinned = false     // 长按松手那一下别再算成「点一下对调」
     @State private var corner: Corner = .topTrailing
     @State private var drag: CGSize = .zero
     @State private var typing = false
@@ -67,7 +69,20 @@ struct CallScreen: View {
         .clipShape(RoundedRectangle(cornerRadius: big ? 0 : 14))
         .position(x: pos.x + (big ? 0 : drag.width), y: pos.y + (big ? 0 : drag.height))
         .zIndex(big ? 0 : 1)
-        .onTapGesture { if !big { withAnimation(.spring(duration: 0.35)) { swapped.toggle() } } }
+        .overlay(Color.white.opacity(!isTa && pinFlash ? 0.6 : 0).allowsHitTesting(false))
+        .onTapGesture {
+            if justPinned { justPinned = false; return }
+            if !big { withAnimation(.spring(duration: 0.35)) { swapped.toggle() } }
+        }
+        // 长按你那一格 = 钉住这一帧，下一轮优先给 ta（01 第 3 节）。
+        // 要 simultaneous：小窗身上还挂着拖动，普通 .gesture 会被拖动吃掉（01 坑 1.4）
+        .simultaneousGesture(LongPressGesture(minimumDuration: 0.4).onEnded { _ in
+            guard !isTa, call.cam.pin() else { return }
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            justPinned = true
+            pinFlash = true
+            withAnimation(.easeOut(duration: 0.4).delay(0.06)) { pinFlash = false }
+        })
         // 大的那块不接拖动：用 mask 关掉，而不是传一个可选手势。
         .gesture(DragGesture()
             .onChanged { drag = $0.translation }
