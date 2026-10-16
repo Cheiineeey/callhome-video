@@ -5,6 +5,10 @@
 [callhome](https://github.com/Cheiineeey/callhome) 是网页版的语音电话，这个是它的原生、带画面的兄弟。
 你打过去或者 ta 打过来，锁屏全屏响铃，灵动岛上有实况。接通后像 FaceTime 一样两格画面，一格是你，一格是 ta。
 
+> **还没装 [callhome](https://github.com/Cheiineeey/callhome)（语音）的，先装它。**
+> 这个仓库不再讲一遍语音那一层：转写、语气基线、拨号/挂断暗号、未接留言、通话里那条「她说话 → 转写 → 模型 → TTS」的回合怎么不卡。
+> 那些都在 callhome 里，原生 app 之后踩的坑写在它的 [docs/SINCE_THE_PWA.md](https://github.com/Cheiineeey/callhome/blob/main/docs/SINCE_THE_PWA.md)。视频是在那上面加画面。
+
 ta 没有摄像头，所以这个仓库真正要回答的是：**一个没有身体的人，视频的时候屏幕上该是什么。**
 
 这里面绝大多数坑都是**静默失败**。没有报错，只是「ta 没看见」「ta 没出声」「卡没走」。
