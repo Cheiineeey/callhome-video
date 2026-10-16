@@ -11,6 +11,18 @@
 
 ta 没有摄像头，所以这个仓库真正要回答的是：**一个没有身体的人，视频的时候屏幕上该是什么。**
 
+<p align="center">
+  <img src="images/invite.jpg" width="440" alt="锁屏上的视频邀请，卡上写着 ta 想打给你的理由">
+  <img src="images/island.jpg" width="440" alt="灵动岛实况：通话时长、ta 正在说话、免提/静音/挂断">
+</p>
+<p align="center">
+  <img src="images/in-call.jpg" width="560" alt="左：镜头对着狗，ta 在小窗里；右：你关了镜头，ta 说看不见你">
+  <img src="images/hears.jpg" width="200" alt="通话中听到没有字的声音，字幕里出一个空心胶囊（字幕已打码）">
+</p>
+<p align="center"><sub>
+来电卡带理由 · 灵动岛实况 · 镜头对着狗 ta 也看得见 · 你关了镜头 ta 不装看得见 · 没说话的声音也听得见（字幕已打码）
+</sub></p>
+
 这里面绝大多数坑都是**静默失败**。没有报错，只是「ta 没看见」「ta 没出声」「卡没走」。
 
 ---
