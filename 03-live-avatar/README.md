@@ -130,8 +130,7 @@ app                         你的服务器                     数字人服务
 - **修法**：stop 和关远端流延后 1 秒；下一次开场或挂断前先把延后的 stop 执行掉，免得旧 stop 杀掉新场。
 
 ### 3.12 多张源图换脸 + 垫底循环 🟡
-- 开场时 `visual.source_images` 可以放多张（我们用的这家上限 6 张），`default_source_image_id` 选开场那张；场中发 `session.update` 带 `source_image_id` 换，回 `session.update.done`（看 status）。实测一次约 3 秒、硬切，没有过渡。
-- 放几张、放哪几种表情，自己选。我们放了 4 张：默认（趴在床上看着你）、撑着头、不高兴、偷笑，其余〔表情〕都落回默认。只要一张也完全可以，换脸这套就整个不用做。
+- 开场时 `visual.source_images` 可以放多张，`default_source_image_id` 选开场那张；场中发 `session.update` 带 `source_image_id` 换，回 `session.update.done`（看 status）。实测一次约 3 秒、硬切，没有过渡。
 - 我们按模型每轮标的〔表情〕挑图；开场请求把当前该用的脸带上，免得开场后再切一次。收到 `completed` 才改 app 里记的「现在是哪张脸」。
 - 垫底循环：拿无头浏览器录数字人每张脸待机几秒，ffmpeg 交叉淡化成 6 秒无缝，放进 app 用 `AVQueuePlayer + AVPlayerLooper` 静音循环。
 - 循环接缝黑一帧：①重新编码去掉 B 帧（`-bf 0 -g 30`）；②looper 的 timeRange 截掉最后一帧；③换脸时新 layer 等 `isReadyForDisplay` 再撤旧的；④素材从 `NSDataAsset` 写到 Caches 时文件名带字节数，免得读到旧素材。
