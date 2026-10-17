@@ -37,11 +37,13 @@ final class Ringer: NSObject, CXProviderDelegate {
 
     func ringIn(after seconds: Double) {
         // 锁屏后 app 会被挂起；借一点后台时间撑过这 5 秒。
-        var bg: UIBackgroundTaskIdentifier = .invalid
-        bg = UIApplication.shared.beginBackgroundTask { UIApplication.shared.endBackgroundTask(bg) }
+        // 任务号装进盒子里：闭包抓的是盒子，不是一个之后才被赋值的 var（Swift 6 会警告）。
+        final class Box: @unchecked Sendable { var id: UIBackgroundTaskIdentifier = .invalid }
+        let bg = Box()
+        bg.id = UIApplication.shared.beginBackgroundTask { UIApplication.shared.endBackgroundTask(bg.id) }
         DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [self] in
             report()
-            UIApplication.shared.endBackgroundTask(bg)
+            UIApplication.shared.endBackgroundTask(bg.id)
         }
     }
 

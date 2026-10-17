@@ -22,7 +22,7 @@ final class AudioRig {
     func configureCategory() {
         let s = AVAudioSession.sharedInstance()
         try? s.setCategory(.playAndRecord, mode: .voiceChat,
-                           options: [.defaultToSpeaker, .allowBluetooth])
+                           options: [.defaultToSpeaker, .allowBluetoothHFP])
     }
 
     /// 自己打出去那条路：自己激活。
