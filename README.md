@@ -19,15 +19,12 @@ ta 没有摄像头，所以这个仓库真正要回答的是：**一个没有身
 </sub></p>
 
 <p align="center">
-  <img src="images/invite.jpg" width="360" alt="锁屏上的视频邀请，卡上写着 ta 想打给你的理由">
-</p>
-<p align="center">
-  <img src="images/island.jpg" width="300" align="middle" alt="灵动岛实况：通话时长、ta 正在说话、免提/静音/挂断">
+  <img src="images/invite.jpg" width="320" align="middle" alt="锁屏上的视频邀请，卡上写着 ta 想打给你的理由，灵动岛上是视频图标">
   <img src="images/in-call-camera.jpg" width="160" align="middle" alt="视频通话中，镜头对着狗，ta 在右上角小窗里">
   <img src="images/hears.jpg" width="160" align="middle" alt="通话中听到没有字的声音，字幕里出一个空心胶囊（字幕已打码）">
 </p>
 <p align="center"><sub>
-来电卡带理由 · 灵动岛实况 · 镜头对着狗 ta 也看得见 · 没说话的声音也听得见（字幕已打码）
+来电卡带理由 · 镜头对着狗 ta 也看得见 · 没说话的声音也听得见（字幕已打码）
 </sub></p>
 
 这里面绝大多数坑都是**静默失败**。没有报错，只是「ta 没看见」「ta 没出声」「卡没走」。
