@@ -59,6 +59,7 @@ final class CallSession: ObservableObject {
     private var permsOK = false
     private var audioReady = false
     private var audioUp = false
+    private var audioTries = 0
 
     init() {
         #if DEBUG
@@ -74,7 +75,7 @@ final class CallSession: ObservableObject {
         // 上一通留下的东西全清掉 —— 尤其是打字队列，不然上一通没念的字会在这一通冒出来。
         captions = []; hearing = ""; camera = .unchosen; face = .calm
         typedQueue = []; followStep = 0; thinking = false; seenFrame = nil
-        permsOK = false; audioUp = false
+        permsOK = false; audioUp = false; audioTries = 0
         audioReady = !viaCallKit       // 自己打的不用等系统
         active = true
         Task {
@@ -98,7 +99,20 @@ final class CallSession: ObservableObject {
 
     private func bringUpAudioIfReady() {
         guard active, permsOK, audioReady, !audioUp else { return }
-        guard AudioRig.shared.start() else { return }
+        guard AudioRig.shared.start() else {
+            // 刚接通那一下系统可能还没把音频交稳，engine 起不来。别就这么静音着：
+            // 隔一会儿再试两次，还不行就上屏说一声，不然你只会觉得 ta 不理你。
+            audioTries += 1
+            if audioTries <= 2 {
+                Task {
+                    try? await Task.sleep(nanoseconds: 600_000_000)
+                    bringUpAudioIfReady()
+                }
+            } else {
+                captions.append(Caption(who: .ta, text: "（声音没起来，挂了重打一次）", isAction: true))
+            }
+            return
+        }
         audioUp = true
         ears.onPartial = { [weak self] t in self?.hearing = t; self?.cancelFollowUp() }
         ears.onFinal = { [weak self] t in
@@ -242,7 +256,13 @@ final class CallSession: ObservableObject {
         while i < raw.endIndex {
             let ch = raw[i]
             if ch == "〔" || ch == "（" {
-                guard let close = raw[i...].firstIndex(of: ch == "〔" ? "〕" : "）") else { break }
+                let next = raw[raw.index(after: i)...].firstIndex { $0 == "〔" || $0 == "（" } ?? raw.endIndex
+                // 没闭合的括号：只吞到下一个标记开头（或结尾），别把后面整段话连同完整的标记一起丢掉。
+                guard let close = raw[i..<next].firstIndex(of: ch == "〔" ? "〕" : "）") else {
+                    flush()
+                    i = next
+                    continue
+                }
                 flush()
                 let inner = String(raw[raw.index(after: i)..<close])
                 if ch == "〔" {
@@ -267,6 +287,11 @@ final class CallSession: ObservableObject {
             return nil
         }
         assert(spoken == ["你好"], "未闭合的动作标记不能进入 TTS")
+        let rest = segments("你好（低头〔笑〕我在。").compactMap { segment -> String? in
+            if case .say(let text) = segment { return text }
+            return nil
+        }
+        assert(rest == ["你好", "我在。"], "没闭合的括号不能吞掉后面的话")
     }
     #endif
 

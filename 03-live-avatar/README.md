@@ -42,6 +42,108 @@ app                         你的服务器                     数字人服务
 - 进房：`autoReceiveAudio: false`，只拉画面。
 - 同一时刻只能排一个回复，所以一次只送一句：上一句本地播完才送下一句。
 
+### 2.1 一步一步怎么连
+
+下面是我们真在跑的那套，字段名照 Vivix 的接口原样写。钥匙、图片地址、音色 id 换成你自己的。
+
+**① 服务器开一场。** 真钥匙只在这一步出现：
+
+```js
+// POST https://api.vivix.ai/v1/realtime-avatar/sessions
+// Authorization: Bearer <你的 Vivix 钥匙>
+{
+  model: "vivix-a1-stream",
+  output: { aspect_ratio: "9:16", resolution: "480p" },
+  max_duration_seconds: 300,                       // 不超过这个月剩的秒数
+  auto_close: {
+    disconnected_timeout_seconds: 10,              // 网页掉线 10 秒自己关
+    interaction_idle_timeout_seconds: 180          // 不能大于 max_duration_seconds，否则 422（坑 3.3）
+  },
+  conversation: { turn_detection: { type: "manual" } },   // 不让它自己听、自己回
+  avatars: [{ avatar_id: "ta", visual: {
+    default_source_image_id: "calm",
+    source_images: [                               // 可以放多张，场中切（坑 3.12）
+      { source_image_id: "calm", url: "https://…/calm.jpg", media_type: "image/jpeg", description: "一句英文描述这张脸" },
+      { source_image_id: "grin", url: "https://…/grin.jpg", media_type: "image/jpeg", description: "…" }
+    ] } }],
+  // 嘴型照我们推过去的音轨动，它自己的 TTS 不开口；但 tts_config 不填齐不让开场。
+  // 我们填的是一套 ElevenLabs（单开一把专用钥匙，日志里替换成 ***），实际从来不用它出声
+  pipeline_config: { tts_config: { tts_provider: "elevenlabs", tts_model_id: "eleven_v3",
+    tts_voice_id: "<音色 id>", tts_api_key: "<ElevenLabs 钥匙>" } }
+}
+```
+
+返回里有用的两块，原样转给 app，app 再塞给网页：
+
+```js
+{
+  session_id: "…",
+  control:  { url: "wss://…", client_secret: "…" },          // 控制通道：说话、换脸、取消
+  delivery: { media: { trtc: {                                // 画面：腾讯 TRTC 房间
+    sdk_app_id, room_id, user_id, user_sig, publisher_user_id // publisher 是数字人那一路
+  } } }
+}
+```
+
+app 拿这份要用自己的鉴权去换（我们是 `POST /live/session` 带一个 Bearer），别让 app 直连 Vivix。
+
+**② 网页连控制通道。** 临时凭证放在 query 里：
+
+```js
+const url = new URL(s.control.url);
+url.searchParams.set("token", s.control.client_secret);
+ws = new WebSocket(url);           // 15 秒没 open 就当连不上
+```
+
+**③ 网页进 TRTC 房间，只拉画面。** 用 `trtc-sdk-v5`，esbuild 打成一个 bundle 让 `WKWebView` 加载：
+
+```js
+rtc = TRTC.create();
+rtc.on(TRTC.EVENT.REMOTE_VIDEO_AVAILABLE, ({ userId, streamType }) => {
+  if (userId === m.publisher_user_id)       // 房里可能不止一路，只要数字人那路
+    rtc.startRemoteVideo({ userId, streamType, view: "v", option: { fillMode: "cover" } });
+});
+await rtc.enterRoom({
+  sdkAppId: Number(m.sdk_app_id), userId: m.user_id, userSig: m.user_sig, strRoomId: m.room_id,
+  scene: TRTC.TYPE.SCENE_RTC,
+  autoReceiveVideo: false,                  // 手动 startRemoteVideo
+  autoReceiveAudio: false                   // 声音不收（第 1 节）
+});
+```
+
+「画面到了」别只等 `FIRST_VIDEO_FRAME`：手机上它有时不来。我们另外每 300ms 看一眼 `#v video`，`videoWidth > 0 && readyState >= 2 && !paused` 也算到了；停着就自己 `play()` 一下。
+
+**④ 每一句：把 mp3 送过去对嘴型。**
+
+```js
+ws.send(JSON.stringify({
+  event_id: "say_" + n, type: "response.create",
+  response: { conversation: "none",
+    script: { vocal: { type: "audio", mime_type: "audio/mpeg", audio: base64Mp3 } } }
+}));
+```
+
+回来的事件按顺序是：
+
+| 事件 | 意思 | 我们做什么 |
+|---|---|---|
+| `response.created` | 收下了，带 `response.id` | 跟刚送的那句对上（一次只送一句，先来后到就对得上） |
+| `response.render.started` | 服务端开始画 | 等手机上真出新帧再让 app 出声（坑 3.13） |
+| `response.done` | 这句画完了，带 `status` | 告诉 app 可以送下一句（坑 3.6：别指望它带你的编号） |
+| `session.update.done` | 换脸完成，带 `status` | 这时才改 app 里记的当前脸 |
+| `error` / `session.closed` | 出错 / 场子没了 | 退回垫底层 |
+
+插话：`{ type: "response.cancel" }`。换脸：`{ type: "session.update", session: { source_image_id: "grin" } }`。
+
+**⑤ 关场。** 网页先 `ws.close()`、`rtc.exitRoom()`、`rtc.destroy()`；app 再叫服务器 `POST https://api.vivix.ai/v1/realtime-avatar/sessions/<session_id>/close`（同一把钥匙），然后记账（第 4 节）。
+
+网页和 app 之间就是几个全局函数加一个 message handler：
+
+```
+app → 网页：start(凭证) / say(编号, base64) / face(id) / cancel() / stop()
+网页 → app：webkit.messageHandlers.vx.postMessage({ ev: "loaded" | "ready" | "started" | "done" | "face" | "error" | "closed", … })
+```
+
 ## 3. 什么时候连着、什么时候断
 
 接通就开场、挂断才关 = 一通电话烧光一个月。所以要断，但**别按轮断**——我们按轮断了一周，越省越亏（见坑 3.9）。
@@ -143,5 +245,7 @@ app                         你的服务器                     数字人服务
   - 发送这一句前，先从 `<video>` 抽一小块像素作为基线。
   - 收到 `render.started` 后，用 `requestVideoFrameCallback` 等手机实际显示的新帧；每帧缩到小画布，和基线比较像素变化。
   - 变化过阈值才回传「可以播」，app 这时才播放同一段本地 TTS。
-  - 取消、插话和关场都递增一个 token，让旧的等帧回调自动失效；另设约 3 秒兜底，避免视频异常时整句永远无声。
+  - 每一句各等各的。只有取消、插话和关场才递增一个纪元号，让所有旧的等帧回调一起失效；另设约 3 秒兜底，避免视频异常时整句永远无声。
+  - 别用「新一句来了就 +1」的全局 token：上一句还没等到新帧就被作废，它永远报不出「可以播」，那句就哑了。我们第一版就是这么写的。
+  - 改完网页记得重新打包时带 `--minify`（不压是 1.6MB，压了 1.1MB），再换 `?v=`（坑 3.2）。
 - **验证状态**：网页脚本和服务已更新；还要真机录一段确认首个发声音节和嘴型同时起。
