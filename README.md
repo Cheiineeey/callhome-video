@@ -16,7 +16,8 @@ ta 没有摄像头，所以这个仓库真正要回答的是：**一个没有身
   <img src="images/island.jpg" width="440" alt="灵动岛实况：通话时长、ta 正在说话、免提/静音/挂断">
 </p>
 <p align="center">
-  <img src="images/in-call.jpg" width="560" alt="左：镜头对着狗，ta 在小窗里；右：你关了镜头，ta 说看不见你">
+  <img src="images/in-call-camera.jpg" width="280" alt="视频通话中，镜头对着狗，ta 在右上角小窗里">
+  <img src="images/in-call-companion.png" width="280" alt="视频通话中，ta 全屏显示，右上角是你的头像和心率">
   <img src="images/hears.jpg" width="200" alt="通话中听到没有字的声音，字幕里出一个空心胶囊（字幕已打码）">
 </p>
 <p align="center"><sub>
