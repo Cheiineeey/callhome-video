@@ -12,6 +12,13 @@
 ta 没有摄像头，所以这个仓库真正要回答的是：**一个没有身体的人，视频的时候屏幕上该是什么。**
 
 <p align="center">
+  <img src="images/live-preview.gif" width="320" alt="视频通话中，ta 的实时画面随着回复开口和动作">
+</p>
+<p align="center"><sub>
+会动的 ta：声音从本地播放，画面同步对嘴；这不是一张照片占位。
+</sub></p>
+
+<p align="center">
   <img src="images/invite.jpg" width="440" alt="锁屏上的视频邀请，卡上写着 ta 想打给你的理由">
   <img src="images/island.jpg" width="440" alt="灵动岛实况：通话时长、ta 正在说话、免提/静音/挂断">
 </p>
