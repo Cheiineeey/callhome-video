@@ -12,23 +12,22 @@
 ta 没有摄像头，所以这个仓库真正要回答的是：**一个没有身体的人，视频的时候屏幕上该是什么。**
 
 <p align="center">
-  <img src="images/live-preview.gif" width="320" alt="视频通话中，ta 的实时画面随着回复开口和动作">
+  <img src="images/live-preview.gif" width="260" alt="视频通话中，ta 的实时画面随着回复开口和动作">
 </p>
 <p align="center"><sub>
 会动的 ta：声音从本地播放，画面同步对嘴；这不是一张照片占位。
 </sub></p>
 
 <p align="center">
-  <img src="images/invite.jpg" width="440" alt="锁屏上的视频邀请，卡上写着 ta 想打给你的理由">
-  <img src="images/island.jpg" width="440" alt="灵动岛实况：通话时长、ta 正在说话、免提/静音/挂断">
+  <img src="images/invite.jpg" width="360" alt="锁屏上的视频邀请，卡上写着 ta 想打给你的理由">
 </p>
 <p align="center">
-  <img src="images/in-call-camera.jpg" width="280" alt="视频通话中，镜头对着狗，ta 在右上角小窗里">
-  <img src="images/in-call-companion.png" width="280" alt="视频通话中，ta 全屏显示，右上角是你的头像和心率">
-  <img src="images/hears.jpg" width="200" alt="通话中听到没有字的声音，字幕里出一个空心胶囊（字幕已打码）">
+  <img src="images/island.jpg" width="300" align="middle" alt="灵动岛实况：通话时长、ta 正在说话、免提/静音/挂断">
+  <img src="images/in-call-camera.jpg" width="160" align="middle" alt="视频通话中，镜头对着狗，ta 在右上角小窗里">
+  <img src="images/hears.jpg" width="160" align="middle" alt="通话中听到没有字的声音，字幕里出一个空心胶囊（字幕已打码）">
 </p>
 <p align="center"><sub>
-来电卡带理由 · 灵动岛实况 · 镜头对着狗 ta 也看得见 · 你关了镜头 ta 不装看得见 · 没说话的声音也听得见（字幕已打码）
+来电卡带理由 · 灵动岛实况 · 镜头对着狗 ta 也看得见 · 没说话的声音也听得见（字幕已打码）
 </sub></p>
 
 这里面绝大多数坑都是**静默失败**。没有报错，只是「ta 没看见」「ta 没出声」「卡没走」。
