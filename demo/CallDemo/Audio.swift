@@ -17,6 +17,7 @@ final class AudioRig {
     private(set) var level: Float = 0
     var onMicBuffer: ((AVAudioPCMBuffer) -> Void)?
     private(set) var running = false
+    private var tapsInstalled = false
 
     /// CallKit 那条路：类别在报来电前配好，**不要自己 setActive**，等系统 didActivate。
     func configureCategory() {
@@ -31,8 +32,9 @@ final class AudioRig {
         try? AVAudioSession.sharedInstance().setActive(true)
     }
 
-    func start() {
-        guard !running else { return }
+    @discardableResult
+    func start() -> Bool {
+        guard !running else { return true }
         // 第二通电话再进来时 player 还挂在 engine 上；重复 attach 会抛异常。
         if player.engine == nil { engine.attach(player) }
         // 回声消除挂在 engine 的 IO 上：开了它，ta 的声音就不会被麦克风当成你在说话。
@@ -46,24 +48,39 @@ final class AudioRig {
         player.installTap(onBus: 0, bufferSize: 1024, format: playFormat) { [weak self] buf, _ in
             self?.meter(buf)
         }
+        tapsInstalled = true
         engine.prepare()
-        do { try engine.start(); running = true } catch { print("engine start:", error) }
-        repinSpeaker()
+        do {
+            try engine.start()
+            running = true
+            repinSpeaker()
+            return true
+        } catch {
+            print("engine start:", error)
+            engine.stop()
+            removeTaps()
+            return false
+        }
     }
 
     /// `deactivate`：自己打的那条路要自己交还音频会话（别人的音乐才能接着放）；
     /// CallKit 那条路系统会收，别插手。
     func stop(deactivate: Bool) {
-        guard running else { return }
         player.stop()
-        engine.inputNode.removeTap(onBus: 0)
-        player.removeTap(onBus: 0)
+        removeTaps()
         engine.stop()
         running = false
         level = 0
         if deactivate {
             try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         }
+    }
+
+    private func removeTaps() {
+        guard tapsInstalled else { return }
+        engine.inputNode.removeTap(onBus: 0)
+        player.removeTap(onBus: 0)
+        tapsInstalled = false
     }
 
     /// 坑 2.1：开摄像头会把声音甩回听筒。每次动过 AVCaptureSession 之后都再钉一次扬声器。

@@ -60,6 +60,12 @@ final class CallSession: ObservableObject {
     private var audioReady = false
     private var audioUp = false
 
+    init() {
+        #if DEBUG
+        Self.assertMarkerParser()
+        #endif
+    }
+
     // MARK: 接通 / 挂断
 
     func start(viaCallKit: Bool) {
@@ -92,8 +98,8 @@ final class CallSession: ObservableObject {
 
     private func bringUpAudioIfReady() {
         guard active, permsOK, audioReady, !audioUp else { return }
+        guard AudioRig.shared.start() else { return }
         audioUp = true
-        AudioRig.shared.start()
         ears.onPartial = { [weak self] t in self?.hearing = t; self?.cancelFollowUp() }
         ears.onFinal = { [weak self] t in
             guard let self else { return }
@@ -223,7 +229,7 @@ final class CallSession: ObservableObject {
 
     enum Segment { case face(Face), action(String), say(String) }
 
-    /// 只认闭合的标记；没闭合的半截当普通字，但也不会把〔、（ 念出来。
+    /// 只认闭合的标记；没闭合的半截先藏起来，避免流式输出把动作念出来。
     static func segments(_ raw: String) -> [Segment] {
         var out: [Segment] = []
         var buf = ""
@@ -235,7 +241,8 @@ final class CallSession: ObservableObject {
         }
         while i < raw.endIndex {
             let ch = raw[i]
-            if ch == "〔" || ch == "（", let close = raw[i...].firstIndex(of: ch == "〔" ? "〕" : "）") {
+            if ch == "〔" || ch == "（" {
+                guard let close = raw[i...].firstIndex(of: ch == "〔" ? "〕" : "）") else { break }
                 flush()
                 let inner = String(raw[raw.index(after: i)..<close])
                 if ch == "〔" {
@@ -246,12 +253,22 @@ final class CallSession: ObservableObject {
                 i = raw.index(after: close)
                 continue
             }
-            if ch != "〔" && ch != "（" { buf.append(ch) }
+            buf.append(ch)
             i = raw.index(after: i)
         }
         flush()
         return out
     }
+
+    #if DEBUG
+    private static func assertMarkerParser() {
+        let spoken = segments("你好（低头").compactMap { segment -> String? in
+            if case .say(let text) = segment { return text }
+            return nil
+        }
+        assert(spoken == ["你好"], "未闭合的动作标记不能进入 TTS")
+    }
+    #endif
 
     // MARK: 你安静时我接话（01 第 7 节）
 
